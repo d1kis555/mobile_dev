@@ -102,6 +102,9 @@ class RegisterFragment : Fragment() {
                 return@setOnClickListener
             }
 
+            val prefs = requireContext().getSharedPreferences("game_prefs", android.content.Context.MODE_PRIVATE)
+            prefs.edit().putString("current_user", fullName).apply()
+
             tvFullNameError.visibility = View.GONE
             etFullName.error = null
 

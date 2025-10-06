@@ -7,13 +7,15 @@ import com.example.myapplication.ui.AuthorsFragment
 import com.example.myapplication.ui.RegisterFragment
 import com.example.myapplication.ui.RulesFragment
 import com.example.myapplication.ui.SettingsFragment
+import com.example.myapplication.ui.RecordsFragment
 
 class TabsAdapter(activity: FragmentActivity) : FragmentStateAdapter(activity) {
-    override fun getItemCount() = 4
+    override fun getItemCount() = 5
     override fun createFragment(position: Int): Fragment = when (position) {
         0 -> RegisterFragment()
         1 -> RulesFragment()
         2 -> AuthorsFragment()
-        else -> SettingsFragment()
+        3 -> SettingsFragment()
+        else -> RecordsFragment()
     }
 }

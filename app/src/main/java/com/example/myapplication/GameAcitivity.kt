@@ -16,6 +16,12 @@ import kotlin.math.sqrt
 import kotlin.random.Random
 import android.animation.Animator
 import android.animation.AnimatorListenerAdapter
+import com.example.myapplication.data.AppDatabase
+import com.example.myapplication.data.Score
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import android.content.Context
 
 class GameActivity : ComponentActivity() {
 
@@ -35,6 +41,8 @@ class GameActivity : ComponentActivity() {
     private var roundDurationMs: Long = 60000L
     private val bugSizeDp: Int = 64
 
+    private lateinit var db: AppDatabase
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_game)
@@ -48,6 +56,7 @@ class GameActivity : ComponentActivity() {
 
         loadSettings()
         roundRemainingMs = roundDurationMs
+        db = AppDatabase.getDatabase(this)
 
         gameField.post { startSpawning() }
         startTimer()
@@ -152,6 +161,28 @@ class GameActivity : ComponentActivity() {
         animator.start()
     }
 
+    private fun saveScore(userName: String, score: Int) {
+        val prefs = getSharedPreferences("game_prefs", Context.MODE_PRIVATE)
+        val speed = prefs.getInt("speed", 5)
+        val maxBugs = prefs.getInt("max_bugs", 10)
+        val bonusInterval = prefs.getInt("bonus_interval", 15)
+        val roundDuration = prefs.getInt("round_duration", 30)
+
+        val record = Score(
+            userName = userName,
+            points = score,
+            difficulty = speed,
+            maxBugs = maxBugs,
+            bonusInterval = bonusInterval,
+            roundDuration = roundDuration
+        )
+
+        CoroutineScope(Dispatchers.IO).launch {
+            db.scoreDao().insertScore(record)
+        }
+    }
+
+
     private fun startTimer() {
         timerRunnable = object : Runnable {
             override fun run() {
@@ -169,6 +200,11 @@ class GameActivity : ComponentActivity() {
         handler.post(timerRunnable)
     }
 
+    private fun getCurrentUserName(): String {
+        val prefs = getSharedPreferences("game_prefs", MODE_PRIVATE)
+        return prefs.getString("current_user", "Гость") ?: "Гость"
+    }
+
     private fun endGame() {
         handler.removeCallbacks(spawnRunnable)
         handler.removeCallbacks(timerRunnable)
@@ -184,6 +220,10 @@ class GameActivity : ComponentActivity() {
         gameField.setOnTouchListener(null)
 
         tvTimer.text = "00:00"
+
+        val userName = getCurrentUserName()
+        val difficulty = intent.getIntExtra("EXTRA_DIFFICULTY", 1)
+        saveScore(userName, score)
 
         androidx.appcompat.app.AlertDialog.Builder(this)
             .setTitle("Игра окончена!")

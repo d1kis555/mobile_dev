@@ -16,7 +16,7 @@ class MainActivity : AppCompatActivity() {
         val viewPager = findViewById<ViewPager2>(R.id.viewPager)
         viewPager.adapter = TabsAdapter(this)
 
-        val titles = listOf("Регистрация", "Правила", "Авторы", "Настройки")
+        val titles = listOf("Регистрация", "Правила", "Авторы", "Настройки", "Рекорды")
         TabLayoutMediator(tabLayout, viewPager) { tab, pos -> tab.text = titles[pos] }.attach()
     }
 }
