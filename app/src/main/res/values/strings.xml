@@ -1,9 +1,13 @@
 <resources>
     <string name="app_name">My Application</string>
 
+    <string name="rules_html"><![CDATA[
+<h2>Правила игры</h2>
+<p>Здесь будет HTML-текст правил. Заполним на следующем этапе.</p>
+]]></string>
+
     <string-array name="courses">
-        <item>1 курс</item><item>2 курс</item><item>3 курс</item>
-        <item>4 курс</item><item>5 курс</item>
+        <item>1 курс</item><item>2 курс</item><item>3 курс</item><item>4 курс</item><item>5 курс</item>
     </string-array>
 
 </resources>

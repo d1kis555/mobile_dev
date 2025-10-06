@@ -1,13 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:orientation="vertical"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <LinearLayout
+    <com.google.android.material.tabs.TabLayout
+        android:id="@+id/tabLayout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="16dp">
+        app:tabMode="fixed"
+        app:tabGravity="fill" />
 
         <!-- ФИО -->
         <EditText
@@ -117,5 +120,4 @@
             android:layout_marginTop="12dp"
             android:contentDescription="Знак зодиака" />
 
-    </LinearLayout>
-</ScrollView>
+</LinearLayout>

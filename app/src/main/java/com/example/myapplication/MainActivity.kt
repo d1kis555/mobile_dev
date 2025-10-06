@@ -1,34 +1,13 @@
 package com.example.myapplication
 
 import android.os.Bundle
-import android.view.View
-import android.widget.*
-import android.text.Editable
-import android.text.TextWatcher
-import androidx.activity.ComponentActivity
-import com.example.myapplication.R
-import java.util.Calendar
+import androidx.appcompat.app.AppCompatActivity
+import androidx.viewpager2.widget.ViewPager2
+import com.example.myapplication.tabs.TabsAdapter
+import com.google.android.material.tabs.TabLayout
+import com.google.android.material.tabs.TabLayoutMediator
 
-class MainActivity : ComponentActivity() {
-
-    private lateinit var etFullName: EditText
-    private lateinit var tvFullNameError: TextView
-
-    private lateinit var rgGender: RadioGroup
-    private lateinit var rbMale: RadioButton
-    private lateinit var rbFemale: RadioButton
-    private lateinit var spCourse: Spinner
-    private lateinit var seekDifficulty: SeekBar
-    private lateinit var tvDifficultyLabel: TextView
-    private lateinit var calendarView: CalendarView
-    private lateinit var btnRegister: Button
-    private lateinit var tvResult: TextView
-    private lateinit var ivZodiac: ImageView
-
-    private var selectedDay = 1
-    private var selectedMonth = 0 // 0..11
-    private var selectedYear = 2000
-
+class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
