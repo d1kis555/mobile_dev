@@ -98,6 +98,8 @@ class MainActivity : ComponentActivity() {
         })
 
         // --- Кнопка "Зарегистрировать"
+        val btnPlay: Button = findViewById(R.id.btnPlay)
+        btnPlay.visibility = View.GONE
         btnRegister.setOnClickListener {
             val fullName = etFullName.text.toString().trim()
 
@@ -122,7 +124,13 @@ class MainActivity : ComponentActivity() {
             val difficulty = seekDifficulty.progress + 1
 
             val (zodiacName, zodiacDrawable) = getZodiac(selectedDay, selectedMonth)
-
+            btnPlay.visibility = View.VISIBLE
+            btnPlay.setOnClickListener {
+                val difficulty = seekDifficulty.progress + 1 // используем выбранную сложность
+                val intent = android.content.Intent(this, GameActivity::class.java)
+                intent.putExtra("EXTRA_DIFFICULTY", difficulty)
+                startActivity(intent)
+            }
             tvResult.text = """
                 ФИО: $fullName
                 Пол: $gender

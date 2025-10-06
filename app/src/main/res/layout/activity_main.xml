@@ -111,11 +111,18 @@
         <!-- Знак зодиака -->
         <ImageView
             android:id="@+id/ivZodiac"
-            android:layout_width="100dp"
-            android:layout_height="100dp"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
             android:layout_gravity="center_horizontal"
             android:layout_marginTop="12dp"
             android:contentDescription="Знак зодиака" />
-
+        <Button
+            android:id="@+id/btnPlay"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Играть"
+            android:layout_marginTop="4dp"
+            android:layout_gravity="center"
+            android:visibility="gone"/>
     </LinearLayout>
 </ScrollView>
