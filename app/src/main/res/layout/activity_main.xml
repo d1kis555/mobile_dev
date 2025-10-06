@@ -12,10 +12,112 @@
         app:tabMode="fixed"
         app:tabGravity="fill" />
 
-    <androidx.viewpager2.widget.ViewPager2
-        android:id="@+id/viewPager"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1" />
+        <!-- ФИО -->
+        <EditText
+            android:id="@+id/etFullName"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="ФИО"
+            android:inputType="textPersonName" />
+        <TextView
+            android:id="@+id/tvFullNameError"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="ФИО введено некорректно. Должно быть минимум 2 слова на русском, каждое с заглавной буквы."
+            android:textColor="@android:color/holo_red_dark"
+            android:visibility="gone"
+            android:textSize="12sp"
+            android:layout_marginTop="4dp"/>
+
+        <!-- Пол -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Пол"
+            android:layout_marginTop="12dp" />
+
+        <RadioGroup
+            android:id="@+id/rgGender"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <RadioButton
+                android:id="@+id/rbMale"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Мужской" />
+
+            <RadioButton
+                android:id="@+id/rbFemale"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Женский"
+                android:layout_marginStart="16dp" />
+        </RadioGroup>
+
+        <!-- Курс -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Курс"
+            android:layout_marginTop="12dp" />
+
+        <Spinner
+            android:id="@+id/spCourse"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+
+        <!-- Уровень сложности -->
+        <TextView
+            android:id="@+id/tvDifficultyLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Сложность: 1"
+            android:layout_marginTop="12dp" />
+
+        <SeekBar
+            android:id="@+id/seekDifficulty"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:max="9"
+            android:progress="0" />
+
+        <!-- Дата рождения -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Дата рождения"
+            android:layout_marginTop="12dp" />
+
+        <CalendarView
+            android:id="@+id/calendarBirth"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+
+        <!-- Кнопка -->
+        <Button
+            android:id="@+id/btnRegister"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Зарегистрировать"
+            android:layout_marginTop="16dp" />
+
+        <!-- Результат -->
+        <TextView
+            android:id="@+id/tvResult"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="16sp"
+            android:layout_marginTop="12dp" />
+
+        <!-- Знак зодиака -->
+        <ImageView
+            android:id="@+id/ivZodiac"
+            android:layout_width="100dp"
+            android:layout_height="100dp"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="12dp"
+            android:contentDescription="Знак зодиака" />
 
 </LinearLayout>
