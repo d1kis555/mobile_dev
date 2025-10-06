@@ -6,6 +6,7 @@ import android.os.Handler
 import android.os.Looper
 import android.view.MotionEvent
 import android.view.ViewGroup
+import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.TextView
@@ -14,7 +15,6 @@ import kotlin.math.atan2
 import kotlin.random.Random
 import android.animation.Animator
 import android.animation.AnimatorListenerAdapter
-import android.widget.Button
 
 class GameActivity : ComponentActivity() {
 
@@ -25,13 +25,11 @@ class GameActivity : ComponentActivity() {
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var spawnRunnable: Runnable
 
-    // ================= Настройки игры =================
     private var gameSpeed: Float = 3.0f
     private var maxBugs: Int = 10
     private var spawnIntervalMs: Long = 1200L
     private var roundDurationMs: Long = 60000L
     private val bugSizeDp: Int = 64
-    // ==================================================
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -41,13 +39,9 @@ class GameActivity : ComponentActivity() {
         gameField = findViewById(R.id.gameField)
 
         val btnMenu: Button = findViewById(R.id.btnMenu)
-        btnMenu.setOnClickListener {
-            finish()
-        }
+        btnMenu.setOnClickListener { finish() }
 
-        val difficulty = intent.getIntExtra("EXTRA_DIFFICULTY", 1)
-        gameSpeed = 1f + (difficulty - 1) * 0.2f
-        spawnIntervalMs = (1600L - (difficulty - 1) * 120L).coerceAtLeast(350L)
+        loadSettings()
 
         gameField.post { startSpawning() }
 
@@ -63,11 +57,20 @@ class GameActivity : ComponentActivity() {
         }
     }
 
+    private fun loadSettings() {
+        val p = getSharedPreferences("game_prefs", MODE_PRIVATE)
+        gameSpeed = p.getInt("speed", 5).toFloat()
+        maxBugs = p.getInt("max_bugs", 10)
+        spawnIntervalMs = (p.getInt("bonus_interval", 15) * 100L).coerceAtLeast(350L)
+        roundDurationMs = (p.getInt("round_duration", 120) * 1000L)
+    }
+
+
     private fun startSpawning() {
         spawnRunnable = object : Runnable {
             override fun run() {
-                val toSpawn = maxBugs - gameField.childCount
-                repeat(toSpawn.coerceAtLeast(1)) { spawnBug() }
+                val toSpawn = (maxBugs - gameField.childCount).coerceAtLeast(0)
+                repeat(toSpawn) { spawnBug() }
                 handler.postDelayed(this, (spawnIntervalMs / gameSpeed).toLong())
             }
         }
@@ -115,7 +118,7 @@ class GameActivity : ComponentActivity() {
         val dx = endX - startX
         val dy = endY - startY
         val distance = kotlin.math.sqrt(dx * dx + dy * dy)
-        val speed = 200f / gameSpeed
+        val speed = 250f * gameSpeed
         val duration = (distance / speed * 1000).toLong()
 
         val animator = ValueAnimator.ofFloat(0f, 1f)
