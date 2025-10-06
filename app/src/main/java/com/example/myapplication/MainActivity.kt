@@ -91,7 +91,7 @@ class MainActivity : ComponentActivity() {
                 tvFullNameError.visibility = if (ok) View.GONE else View.VISIBLE
                 if (!ok && text.isNotBlank()) {
                     tvFullNameError.text =
-                        "ФИО введено некорректно. Нужно минимум два слова на русском, каждое с заглавной буквы."
+                        "ФИО введено некорректно. Нужно минимум два слова, каждое с заглавной буквы."
                 }
                 if (ok) etFullName.error = null
             }
@@ -105,7 +105,7 @@ class MainActivity : ComponentActivity() {
             if (!isValidFullName(fullName)) {
                 tvFullNameError.visibility = View.VISIBLE
                 tvFullNameError.text =
-                    "ФИО введено некорректно. Нужно минимум два слова на русском, каждое с заглавной буквы."
+                    "ФИО введено некорректно. Нужно минимум два слова, каждое с заглавной буквы."
                 etFullName.error = "Проверьте формат ФИО"
                 return@setOnClickListener
             } else {
@@ -153,7 +153,7 @@ class MainActivity : ComponentActivity() {
 
         if (words.size < 2) return false
 
-        val wordRegex = Regex("^[А-ЯЁ][а-яё]+(?:-[А-ЯЁ][а-яё]+)*$")
+        val wordRegex = Regex("^[A-ZА-ЯЁ][a-zа-яёA-ZА-ЯЁ-]*$")
 
         return words.all { wordRegex.matches(it) }
     }
