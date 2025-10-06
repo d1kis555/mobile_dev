@@ -2,7 +2,6 @@ package com.example.myapplication.ui
 
 import android.os.Bundle
 import android.text.Editable
-import android.text.Html
 import android.text.TextWatcher
 import android.view.LayoutInflater
 import android.view.View
@@ -24,9 +23,10 @@ class RegisterFragment : Fragment() {
     private lateinit var btnRegister: Button
     private lateinit var tvResult: TextView
     private lateinit var ivZodiac: ImageView
+    private lateinit var btnPlay: Button
 
     private var selectedDay = 1
-    private var selectedMonth = 0 // 0..11
+    private var selectedMonth = 0
     private var selectedYear = 2000
 
     override fun onCreateView(
@@ -46,6 +46,7 @@ class RegisterFragment : Fragment() {
         btnRegister = view.findViewById(R.id.btnRegister)
         tvResult = view.findViewById(R.id.tvResult)
         ivZodiac = view.findViewById(R.id.ivZodiac)
+        btnPlay = view.findViewById(R.id.btnPlay)
 
         ArrayAdapter.createFromResource(
             requireContext(), R.array.courses, android.R.layout.simple_spinner_item
@@ -56,6 +57,7 @@ class RegisterFragment : Fragment() {
 
         tvDifficultyLabel.text = "Сложность: 1"
         seekDifficulty.max = 9
+        seekDifficulty.progress = 0
         seekDifficulty.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(sb: SeekBar?, p: Int, f: Boolean) {
                 tvDifficultyLabel.text = "Сложность: ${p + 1}"
@@ -68,7 +70,11 @@ class RegisterFragment : Fragment() {
         selectedYear = cal.get(Calendar.YEAR)
         selectedMonth = cal.get(Calendar.MONTH)
         selectedDay = cal.get(Calendar.DAY_OF_MONTH)
-        calendarView.setOnDateChangeListener { _, y, m, d -> selectedYear = y; selectedMonth = m; selectedDay = d }
+        calendarView.setOnDateChangeListener { _, y, m, d ->
+            selectedYear = y
+            selectedMonth = m
+            selectedDay = d
+        }
 
         etFullName.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
@@ -79,23 +85,25 @@ class RegisterFragment : Fragment() {
                 tvFullNameError.visibility = if (ok) View.GONE else View.VISIBLE
                 if (!ok && t.isNotBlank()) {
                     tvFullNameError.text =
-                        "ФИО введено некорректно. Нужно минимум два слова на русском, каждое с заглавной буквы."
+                        "ФИО введено некорректно. Нужно минимум два слова, каждое с заглавной буквы."
                 }
             }
         })
+
+        btnPlay.visibility = View.GONE
 
         btnRegister.setOnClickListener {
             val fullName = etFullName.text.toString().trim()
             if (!isValidFullName(fullName)) {
                 tvFullNameError.visibility = View.VISIBLE
                 tvFullNameError.text =
-                    "ФИО введено некорректно. Нужно минимум два слова на русском, каждое с заглавной буквы."
+                    "ФИО введено некорректно. Нужно минимум два слова, каждое с заглавной буквы."
                 etFullName.error = "Проверьте формат ФИО"
                 return@setOnClickListener
-            } else {
-                tvFullNameError.visibility = View.GONE
-                etFullName.error = null
             }
+
+            tvFullNameError.visibility = View.GONE
+            etFullName.error = null
 
             val gender = when (rgGender.checkedRadioButtonId) {
                 R.id.rbMale -> "Мужской"
@@ -117,33 +125,41 @@ class RegisterFragment : Fragment() {
 
             if (zodiacDrawable != null) ivZodiac.setImageResource(zodiacDrawable)
             else ivZodiac.setImageDrawable(null)
+
+            btnPlay.visibility = View.VISIBLE
+            btnPlay.setOnClickListener {
+                val difficulty = seekDifficulty.progress + 1
+                val intent = android.content.Intent(requireContext(), com.example.myapplication.GameActivity::class.java)
+                intent.putExtra("EXTRA_DIFFICULTY", difficulty)
+                startActivity(intent)
+            }
         }
     }
 
     private fun isValidFullName(input: String): Boolean {
         val words = input.trim().split("\\s+".toRegex()).filter { it.isNotEmpty() }
         if (words.size < 2) return false
-        val wordRegex = Regex("^[А-ЯЁ][а-яё]+(?:-[А-ЯЁ][а-яё]+)*$")
+        val wordRegex = Regex("^[A-ZА-ЯЁ][a-zа-яёA-ZА-ЯЁ-]*$")
         return words.all { wordRegex.matches(it) }
     }
 
     private fun getZodiac(day: Int, monthZeroBased: Int): Pair<String, Int?> {
         val m = monthZeroBased + 1
-        val (name, key) = when {
-            (m == 3 && day >= 21) || (m == 4 && day <= 19)  -> "Овен" to "zodiac_aries"
-            (m == 4 && day >= 20) || (m == 5 && day <= 20)  -> "Телец" to "zodiac_taurus"
-            (m == 5 && day >= 21) || (m == 6 && day <= 20)  -> "Близнецы" to "zodiac_gemini"
-            (m == 6 && day >= 21) || (m == 7 && day <= 22)  -> "Рак" to "zodiac_cancer"
-            (m == 7 && day >= 23) || (m == 8 && day <= 22)  -> "Лев" to "zodiac_leo"
-            (m == 8 && day >= 23) || (m == 9 && day <= 22)  -> "Дева" to "zodiac_virgo"
-            (m == 9 && day >= 23) || (m == 10 && day <= 22) -> "Весы" to "zodiac_libra"
-            (m == 10 && day >= 23) || (m == 11 && day <= 21)-> "Скорпион" to "zodiac_scorpio"
-            (m == 11 && day >= 22) || (m == 12 && day <= 21)-> "Стрелец" to "zodiac_sagittarius"
-            (m == 12 && day >= 22) || (m == 1 && day <= 19) -> "Козерог" to "zodiac_capricorn"
-            (m == 1 && day >= 20) || (m == 2 && day <= 18)  -> "Водолей" to "zodiac_aquarius"
-            else -> "Рыбы" to "zodiac_pisces"
+        val (name, fileName) = when {
+            (m == 3  && day >= 21) || (m == 4 && day <= 19) -> "Овен"      to "oven"
+            (m == 4  && day >= 20) || (m == 5 && day <= 20) -> "Телец"     to "telets"
+            (m == 5  && day >= 21) || (m == 6 && day <= 20) -> "Близнецы"  to "bliznets"
+            (m == 6  && day >= 21) || (m == 7 && day <= 22) -> "Рак"       to "rak_fedya"
+            (m == 7  && day >= 23) || (m == 8 && day <= 22) -> "Лев"       to "lev"
+            (m == 8  && day >= 23) || (m == 9 && day <= 22) -> "Дева"      to "deva"
+            (m == 9  && day >= 23) || (m == 10 && day <= 22)-> "Весы"      to "vesi"
+            (m == 10 && day >= 23) || (m == 11 && day <= 21)-> "Скорпион"  to "scorp"
+            (m == 11 && day >= 22) || (m == 12 && day <= 21)-> "Стрелец"   to "strelets"
+            (m == 12 && day >= 22) || (m == 1 && day <= 19)-> "Козерог"   to "kozerog"
+            (m == 1  && day >= 20) || (m == 2 && day <= 18)-> "Водолей"   to "vodoley"
+            else                                               -> "Рыбы"     to "ribi"
         }
-        val resId = resources.getIdentifier(key, "drawable", requireContext().packageName)
-        return if (resId != 0) name to resId else name to null
+        val resId = resources.getIdentifier(fileName, "drawable", requireContext().packageName)
+        return name to if (resId != 0) resId else null
     }
 }
