@@ -163,21 +163,22 @@ class MainActivity : ComponentActivity() {
      */
     private fun getZodiac(day: Int, monthZeroBased: Int): Pair<String, Int?> {
         val m = monthZeroBased + 1 // 1..12
-        val (name, key) = when {
-            (m == 3  && day >= 21) || (m == 4 && day <= 19) -> "Овен"      to "zodiac_aries"
-            (m == 4  && day >= 20) || (m == 5 && day <= 20) -> "Телец"     to "zodiac_taurus"
-            (m == 5  && day >= 21) || (m == 6 && day <= 20) -> "Близнецы"  to "zodiac_gemini"
-            (m == 6  && day >= 21) || (m == 7 && day <= 22) -> "Рак"       to "zodiac_cancer"
-            (m == 7  && day >= 23) || (m == 8 && day <= 22) -> "Лев"       to "zodiac_leo"
-            (m == 8  && day >= 23) || (m == 9 && day <= 22) -> "Дева"      to "zodiac_virgo"
-            (m == 9  && day >= 23) || (m == 10 && day <= 22)-> "Весы"      to "zodiac_libra"
-            (m == 10 && day >= 23) || (m == 11 && day <= 21)-> "Скорпион"  to "zodiac_scorpio"
-            (m == 11 && day >= 22) || (m == 12 && day <= 21)-> "Стрелец"   to "zodiac_sagittarius"
-            (m == 12 && day >= 22) || (m == 1 && day <= 19)-> "Козерог"    to "zodiac_capricorn"
-            (m == 1  && day >= 20) || (m == 2 && day <= 18)-> "Водолей"    to "zodiac_aquarius"
-            else                                               -> "Рыбы"     to "zodiac_pisces"
+        val (name, fileName) = when {
+            (m == 3  && day >= 21) || (m == 4 && day <= 19) -> "Овен"      to "oven"
+            (m == 4  && day >= 20) || (m == 5 && day <= 20) -> "Телец"     to "telets"
+            (m == 5  && day >= 21) || (m == 6 && day <= 20) -> "Близнецы"  to "bliznets"
+            (m == 6  && day >= 21) || (m == 7 && day <= 22) -> "Рак"       to "rak_fedya"
+            (m == 7  && day >= 23) || (m == 8 && day <= 22) -> "Лев"       to "lev"
+            (m == 8  && day >= 23) || (m == 9 && day <= 22) -> "Дева"      to "deva"
+            (m == 9  && day >= 23) || (m == 10 && day <= 22)-> "Весы"      to "vesi"
+            (m == 10 && day >= 23) || (m == 11 && day <= 21)-> "Скорпион"  to "scorp"
+            (m == 11 && day >= 22) || (m == 12 && day <= 21)-> "Стрелец"   to "strelets"
+            (m == 12 && day >= 22) || (m == 1 && day <= 19)-> "Козерог"   to "kozerog"
+            (m == 1  && day >= 20) || (m == 2 && day <= 18)-> "Водолей"   to "vodoley"
+            else                                               -> "Рыбы"     to "ribi"
         }
-        val resId = resources.getIdentifier(key, "drawable", packageName)
-        return if (resId != 0) name to resId else name to null
+
+        val resId = resources.getIdentifier(fileName, "drawable", packageName)
+        return name to if (resId != 0) resId else null
     }
 }
