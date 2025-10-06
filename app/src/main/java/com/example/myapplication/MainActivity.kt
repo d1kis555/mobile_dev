@@ -1,7 +1,10 @@
 package com.example.myapplication
 
 import android.os.Bundle
+import android.view.View
 import android.widget.*
+import android.text.Editable
+import android.text.TextWatcher
 import androidx.activity.ComponentActivity
 import com.example.myapplication.R
 import java.util.Calendar
@@ -9,6 +12,8 @@ import java.util.Calendar
 class MainActivity : ComponentActivity() {
 
     private lateinit var etFullName: EditText
+    private lateinit var tvFullNameError: TextView
+
     private lateinit var rgGender: RadioGroup
     private lateinit var rbMale: RadioButton
     private lateinit var rbFemale: RadioButton
@@ -26,11 +31,12 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Подключаем XML-разметку вместо Compose
         setContentView(R.layout.activity_main)
 
         // --- View-ссылки
         etFullName = findViewById(R.id.etFullName)
+        tvFullNameError = findViewById(R.id.tvFullNameError)
+
         rgGender = findViewById(R.id.rgGender)
         rbMale = findViewById(R.id.rbMale)
         rbFemale = findViewById(R.id.rbFemale)
@@ -45,7 +51,7 @@ class MainActivity : ComponentActivity() {
         // --- Spinner "Курс"
         ArrayAdapter.createFromResource(
             this,
-            R.array.courses,                       // добавлен ранее в res/values/strings.xml
+            R.array.courses,
             android.R.layout.simple_spinner_item
         ).also { adapter ->
             adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
@@ -58,28 +64,55 @@ class MainActivity : ComponentActivity() {
         seekDifficulty.progress = 0
         seekDifficulty.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                val value = progress + 1
-                tvDifficultyLabel.text = "Сложность: $value"
+                tvDifficultyLabel.text = "Сложность: ${progress + 1}"
             }
             override fun onStartTrackingTouch(seekBar: SeekBar?) {}
             override fun onStopTrackingTouch(seekBar: SeekBar?) {}
         })
 
-        // --- CalendarView: запоминаем выбранную дату
+        // --- CalendarView
         val cal = Calendar.getInstance().apply { timeInMillis = calendarView.date }
         selectedYear = cal.get(Calendar.YEAR)
-        selectedMonth = cal.get(Calendar.MONTH)          // 0..11
+        selectedMonth = cal.get(Calendar.MONTH)
         selectedDay = cal.get(Calendar.DAY_OF_MONTH)
-
         calendarView.setOnDateChangeListener { _, year, month, dayOfMonth ->
             selectedYear = year
             selectedMonth = month
             selectedDay = dayOfMonth
         }
 
+        // --- Мгновенная проверка ФИО при вводе (и скрытие/показ уведомления)
+        etFullName.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: Editable?) {
+                val text = s?.toString().orEmpty()
+                val ok = text.isBlank() || isValidFullName(text)
+                tvFullNameError.visibility = if (ok) View.GONE else View.VISIBLE
+                if (!ok && text.isNotBlank()) {
+                    tvFullNameError.text =
+                        "ФИО введено некорректно. Нужно минимум два слова на русском, каждое с заглавной буквы."
+                }
+                if (ok) etFullName.error = null
+            }
+        })
+
         // --- Кнопка "Зарегистрировать"
         btnRegister.setOnClickListener {
             val fullName = etFullName.text.toString().trim()
+
+            // ВАЛИДАЦИЯ ФИО
+            if (!isValidFullName(fullName)) {
+                tvFullNameError.visibility = View.VISIBLE
+                tvFullNameError.text =
+                    "ФИО введено некорректно. Нужно минимум два слова на русском, каждое с заглавной буквы."
+                etFullName.error = "Проверьте формат ФИО"
+                return@setOnClickListener
+            } else {
+                tvFullNameError.visibility = View.GONE
+                etFullName.error = null
+            }
+
             val gender = when (rgGender.checkedRadioButtonId) {
                 R.id.rbMale -> "Мужской"
                 R.id.rbFemale -> "Женский"
@@ -102,17 +135,34 @@ class MainActivity : ComponentActivity() {
             if (zodiacDrawable != null) {
                 ivZodiac.setImageResource(zodiacDrawable)
             } else {
-                ivZodiac.setImageDrawable(null) // если нет картинок — оставим пустым
+                ivZodiac.setImageDrawable(null)
             }
         }
+    }
+
+    /**
+     * Валидирует ФИО:
+     * - минимум 2 слова;
+     * - только русские буквы, разрешён дефис внутри слова;
+     * - каждое слово с заглавной буквы.
+     */
+    private fun isValidFullName(input: String): Boolean {
+        val words = input.trim()
+            .split("\\s+".toRegex())
+            .filter { it.isNotEmpty() }
+
+        if (words.size < 2) return false
+
+        val wordRegex = Regex("^[А-ЯЁ][а-яё]+(?:-[А-ЯЁ][а-яё]+)*$")
+
+        return words.all { wordRegex.matches(it) }
     }
 
     /**
      * Возвращает (название знака, drawable-ресурс или null) по дате рождения.
      */
     private fun getZodiac(day: Int, monthZeroBased: Int): Pair<String, Int?> {
-        val m = monthZeroBased + 1 // делаем 1..12
-
+        val m = monthZeroBased + 1 // 1..12
         val (name, key) = when {
             (m == 3  && day >= 21) || (m == 4 && day <= 19) -> "Овен"      to "zodiac_aries"
             (m == 4  && day >= 20) || (m == 5 && day <= 20) -> "Телец"     to "zodiac_taurus"
@@ -127,8 +177,6 @@ class MainActivity : ComponentActivity() {
             (m == 1  && day >= 20) || (m == 2 && day <= 18)-> "Водолей"    to "zodiac_aquarius"
             else                                               -> "Рыбы"     to "zodiac_pisces"
         }
-
-        // Пытаемся найти ресурс по имени. Если картинок ещё нет — вернётся null.
         val resId = resources.getIdentifier(key, "drawable", packageName)
         return if (resId != 0) name to resId else name to null
     }
