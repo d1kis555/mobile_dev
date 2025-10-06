@@ -1,183 +1,22 @@
 package com.example.myapplication
 
 import android.os.Bundle
-import android.view.View
-import android.widget.*
-import android.text.Editable
-import android.text.TextWatcher
-import androidx.activity.ComponentActivity
-import com.example.myapplication.R
-import java.util.Calendar
+import androidx.appcompat.app.AppCompatActivity
+import androidx.viewpager2.widget.ViewPager2
+import com.example.myapplication.tabs.TabsAdapter
+import com.google.android.material.tabs.TabLayout
+import com.google.android.material.tabs.TabLayoutMediator
 
-class MainActivity : ComponentActivity() {
-
-    private lateinit var etFullName: EditText
-    private lateinit var tvFullNameError: TextView
-
-    private lateinit var rgGender: RadioGroup
-    private lateinit var rbMale: RadioButton
-    private lateinit var rbFemale: RadioButton
-    private lateinit var spCourse: Spinner
-    private lateinit var seekDifficulty: SeekBar
-    private lateinit var tvDifficultyLabel: TextView
-    private lateinit var calendarView: CalendarView
-    private lateinit var btnRegister: Button
-    private lateinit var tvResult: TextView
-    private lateinit var ivZodiac: ImageView
-
-    private var selectedDay = 1
-    private var selectedMonth = 0 // 0..11
-    private var selectedYear = 2000
-
+class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        // --- View-ссылки
-        etFullName = findViewById(R.id.etFullName)
-        tvFullNameError = findViewById(R.id.tvFullNameError)
+        val tabLayout = findViewById<TabLayout>(R.id.tabLayout)
+        val viewPager = findViewById<ViewPager2>(R.id.viewPager)
+        viewPager.adapter = TabsAdapter(this)
 
-        rgGender = findViewById(R.id.rgGender)
-        rbMale = findViewById(R.id.rbMale)
-        rbFemale = findViewById(R.id.rbFemale)
-        spCourse = findViewById(R.id.spCourse)
-        seekDifficulty = findViewById(R.id.seekDifficulty)
-        tvDifficultyLabel = findViewById(R.id.tvDifficultyLabel)
-        calendarView = findViewById(R.id.calendarBirth)
-        btnRegister = findViewById(R.id.btnRegister)
-        tvResult = findViewById(R.id.tvResult)
-        ivZodiac = findViewById(R.id.ivZodiac)
-
-        // --- Spinner "Курс"
-        ArrayAdapter.createFromResource(
-            this,
-            R.array.courses,
-            android.R.layout.simple_spinner_item
-        ).also { adapter ->
-            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-            spCourse.adapter = adapter
-        }
-
-        // --- SeekBar "Сложность" (1..10)
-        tvDifficultyLabel.text = "Сложность: 1"
-        seekDifficulty.max = 9
-        seekDifficulty.progress = 0
-        seekDifficulty.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                tvDifficultyLabel.text = "Сложность: ${progress + 1}"
-            }
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
-        })
-
-        // --- CalendarView
-        val cal = Calendar.getInstance().apply { timeInMillis = calendarView.date }
-        selectedYear = cal.get(Calendar.YEAR)
-        selectedMonth = cal.get(Calendar.MONTH)
-        selectedDay = cal.get(Calendar.DAY_OF_MONTH)
-        calendarView.setOnDateChangeListener { _, year, month, dayOfMonth ->
-            selectedYear = year
-            selectedMonth = month
-            selectedDay = dayOfMonth
-        }
-
-        // --- Мгновенная проверка ФИО при вводе (и скрытие/показ уведомления)
-        etFullName.addTextChangedListener(object : TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-            override fun afterTextChanged(s: Editable?) {
-                val text = s?.toString().orEmpty()
-                val ok = text.isBlank() || isValidFullName(text)
-                tvFullNameError.visibility = if (ok) View.GONE else View.VISIBLE
-                if (!ok && text.isNotBlank()) {
-                    tvFullNameError.text =
-                        "ФИО введено некорректно. Нужно минимум два слова на русском, каждое с заглавной буквы."
-                }
-                if (ok) etFullName.error = null
-            }
-        })
-
-        // --- Кнопка "Зарегистрировать"
-        btnRegister.setOnClickListener {
-            val fullName = etFullName.text.toString().trim()
-
-            // ВАЛИДАЦИЯ ФИО
-            if (!isValidFullName(fullName)) {
-                tvFullNameError.visibility = View.VISIBLE
-                tvFullNameError.text =
-                    "ФИО введено некорректно. Нужно минимум два слова на русском, каждое с заглавной буквы."
-                etFullName.error = "Проверьте формат ФИО"
-                return@setOnClickListener
-            } else {
-                tvFullNameError.visibility = View.GONE
-                etFullName.error = null
-            }
-
-            val gender = when (rgGender.checkedRadioButtonId) {
-                R.id.rbMale -> "Мужской"
-                R.id.rbFemale -> "Женский"
-                else -> "Не указан"
-            }
-            val course = spCourse.selectedItem?.toString() ?: "Не выбран"
-            val difficulty = seekDifficulty.progress + 1
-
-            val (zodiacName, zodiacDrawable) = getZodiac(selectedDay, selectedMonth)
-
-            tvResult.text = """
-                ФИО: $fullName
-                Пол: $gender
-                Курс: $course
-                Сложность: $difficulty
-                Дата рождения: %02d.%02d.%04d
-                Знак зодиака: $zodiacName
-            """.trimIndent().format(selectedDay, selectedMonth + 1, selectedYear)
-
-            if (zodiacDrawable != null) {
-                ivZodiac.setImageResource(zodiacDrawable)
-            } else {
-                ivZodiac.setImageDrawable(null)
-            }
-        }
-    }
-
-    /**
-     * Валидирует ФИО:
-     * - минимум 2 слова;
-     * - только русские буквы, разрешён дефис внутри слова;
-     * - каждое слово с заглавной буквы.
-     */
-    private fun isValidFullName(input: String): Boolean {
-        val words = input.trim()
-            .split("\\s+".toRegex())
-            .filter { it.isNotEmpty() }
-
-        if (words.size < 2) return false
-
-        val wordRegex = Regex("^[А-ЯЁ][а-яё]+(?:-[А-ЯЁ][а-яё]+)*$")
-
-        return words.all { wordRegex.matches(it) }
-    }
-
-    /**
-     * Возвращает (название знака, drawable-ресурс или null) по дате рождения.
-     */
-    private fun getZodiac(day: Int, monthZeroBased: Int): Pair<String, Int?> {
-        val m = monthZeroBased + 1 // 1..12
-        val (name, key) = when {
-            (m == 3  && day >= 21) || (m == 4 && day <= 19) -> "Овен"      to "zodiac_aries"
-            (m == 4  && day >= 20) || (m == 5 && day <= 20) -> "Телец"     to "zodiac_taurus"
-            (m == 5  && day >= 21) || (m == 6 && day <= 20) -> "Близнецы"  to "zodiac_gemini"
-            (m == 6  && day >= 21) || (m == 7 && day <= 22) -> "Рак"       to "zodiac_cancer"
-            (m == 7  && day >= 23) || (m == 8 && day <= 22) -> "Лев"       to "zodiac_leo"
-            (m == 8  && day >= 23) || (m == 9 && day <= 22) -> "Дева"      to "zodiac_virgo"
-            (m == 9  && day >= 23) || (m == 10 && day <= 22)-> "Весы"      to "zodiac_libra"
-            (m == 10 && day >= 23) || (m == 11 && day <= 21)-> "Скорпион"  to "zodiac_scorpio"
-            (m == 11 && day >= 22) || (m == 12 && day <= 21)-> "Стрелец"   to "zodiac_sagittarius"
-            (m == 12 && day >= 22) || (m == 1 && day <= 19)-> "Козерог"    to "zodiac_capricorn"
-            (m == 1  && day >= 20) || (m == 2 && day <= 18)-> "Водолей"    to "zodiac_aquarius"
-            else                                               -> "Рыбы"     to "zodiac_pisces"
-        }
-        val resId = resources.getIdentifier(key, "drawable", packageName)
-        return if (resId != 0) name to resId else name to null
+        val titles = listOf("Регистрация", "Правила", "Авторы", "Настройки")
+        TabLayoutMediator(tabLayout, viewPager) { tab, pos -> tab.text = titles[pos] }.attach()
     }
 }
