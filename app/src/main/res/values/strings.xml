@@ -1,3 +1,10 @@
 <resources>
     <string name="app_name">My Application</string>
+
+    <string-array name="courses">
+        <item>1 курс</item><item>2 курс</item><item>3 курс</item>
+        <item>4 курс</item><item>5 курс</item>
+    </string-array>
+
 </resources>
+
