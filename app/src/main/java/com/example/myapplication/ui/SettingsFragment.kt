@@ -38,20 +38,20 @@ class SettingsFragment : Fragment() {
         seekSpeed.max = 9
         seekMax.max = 49
         seekBonus.max = 55
-        seekRound.max = 570
+        seekRound.max = 50
 
         fun setProgressesFromPrefs() {
             seekSpeed.progress = (p.getInt(KEY_SPEED, 5) - 1)
             seekMax.progress = (p.getInt(KEY_MAX_BUGS, 10) - 1)
             seekBonus.progress = (p.getInt(KEY_BONUS_INTERVAL, 15) - 5)
-            seekRound.progress = (p.getInt(KEY_ROUND_DURATION, 120) - 30)
+            seekRound.progress = (p.getInt(KEY_ROUND_DURATION, 30) - 10)
         }
 
         fun showValues() {
             tvSpeed.text = "${seekSpeed.progress + 1}"
             tvMax.text = "${seekMax.progress + 1}"
             tvBonus.text = "${seekBonus.progress + 5}"
-            tvRound.text = "${seekRound.progress + 30}"
+            tvRound.text = "${seekRound.progress + 10}"
         }
 
         fun setListeners() {
@@ -78,10 +78,10 @@ class SettingsFragment : Fragment() {
                 }
             })
             seekRound.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-                override fun onProgressChanged(s: SeekBar?, p0: Int, f: Boolean) { tvRound.text = "${p0 + 30}" }
+                override fun onProgressChanged(s: SeekBar?, p0: Int, f: Boolean) { tvRound.text = "${p0 + 10}" }
                 override fun onStartTrackingTouch(s: SeekBar?) {}
                 override fun onStopTrackingTouch(s: SeekBar?) {
-                    editor.putInt(KEY_ROUND_DURATION, seekRound.progress + 30).apply()
+                    editor.putInt(KEY_ROUND_DURATION, seekRound.progress + 10).apply()
                 }
             })
         }

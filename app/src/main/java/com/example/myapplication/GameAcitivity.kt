@@ -12,6 +12,7 @@ import android.widget.ImageView
 import android.widget.TextView
 import androidx.activity.ComponentActivity
 import kotlin.math.atan2
+import kotlin.math.sqrt
 import kotlin.random.Random
 import android.animation.Animator
 import android.animation.AnimatorListenerAdapter
@@ -19,11 +20,14 @@ import android.animation.AnimatorListenerAdapter
 class GameActivity : ComponentActivity() {
 
     private lateinit var tvScore: TextView
+    private lateinit var tvTimer: TextView
     private lateinit var gameField: FrameLayout
     private var score = 0
+    private var roundRemainingMs: Long = 0
 
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var spawnRunnable: Runnable
+    private lateinit var timerRunnable: Runnable
 
     private var gameSpeed: Float = 3.0f
     private var maxBugs: Int = 10
@@ -36,14 +40,17 @@ class GameActivity : ComponentActivity() {
         setContentView(R.layout.activity_game)
 
         tvScore = findViewById(R.id.tvScore)
+        tvTimer = findViewById(R.id.tvTimer)
         gameField = findViewById(R.id.gameField)
 
         val btnMenu: Button = findViewById(R.id.btnMenu)
         btnMenu.setOnClickListener { finish() }
 
         loadSettings()
+        roundRemainingMs = roundDurationMs
 
         gameField.post { startSpawning() }
+        startTimer()
 
         gameField.setOnTouchListener { _, event ->
             if (event.action == MotionEvent.ACTION_DOWN) {
@@ -64,7 +71,6 @@ class GameActivity : ComponentActivity() {
         spawnIntervalMs = (p.getInt("bonus_interval", 15) * 100L).coerceAtLeast(350L)
         roundDurationMs = (p.getInt("round_duration", 120) * 1000L)
     }
-
 
     private fun startSpawning() {
         spawnRunnable = object : Runnable {
@@ -111,29 +117,24 @@ class GameActivity : ComponentActivity() {
     private fun moveBugSmooth(bug: ImageView, fieldW: Int, fieldH: Int, sizePx: Int) {
         val endX = Random.nextInt(0, fieldW - sizePx).toFloat()
         val endY = Random.nextInt(0, fieldH - sizePx).toFloat()
-
         val startX = bug.x
         val startY = bug.y
-
         val dx = endX - startX
         val dy = endY - startY
-        val distance = kotlin.math.sqrt(dx * dx + dy * dy)
-        val speed = 250f * gameSpeed
+        val distance = sqrt(dx * dx + dy * dy)
+        val speed = 50f * gameSpeed
         val duration = (distance / speed * 1000).toLong()
 
         val animator = ValueAnimator.ofFloat(0f, 1f)
         animator.duration = duration
         animator.addUpdateListener { valueAnimator ->
             val fraction = valueAnimator.animatedValue as Float
-
             val prevX = bug.x
             val prevY = bug.y
-
             val newX = startX + dx * fraction
             val newY = startY + dy * fraction
             bug.x = newX
             bug.y = newY
-
             val vx = newX - prevX
             val vy = newY - prevY
             if (vx != 0f || vy != 0f) {
@@ -151,8 +152,54 @@ class GameActivity : ComponentActivity() {
         animator.start()
     }
 
+    private fun startTimer() {
+        timerRunnable = object : Runnable {
+            override fun run() {
+                if (roundRemainingMs <= 0) {
+                    endGame()
+                    return
+                }
+                val seconds = (roundRemainingMs / 1000) % 60
+                val minutes = (roundRemainingMs / 1000) / 60
+                tvTimer.text = String.format("%02d:%02d", minutes, seconds)
+                roundRemainingMs -= 1000
+                handler.postDelayed(this, 1000)
+            }
+        }
+        handler.post(timerRunnable)
+    }
+
+    private fun endGame() {
+        handler.removeCallbacks(spawnRunnable)
+        handler.removeCallbacks(timerRunnable)
+        roundRemainingMs = 0
+
+        val childCount = gameField.childCount
+        for (i in childCount - 1 downTo 0) {
+            val child = gameField.getChildAt(i)
+            child.animate().cancel()
+            gameField.removeView(child)
+        }
+
+        gameField.setOnTouchListener(null)
+
+        tvTimer.text = "00:00"
+
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Игра окончена!")
+            .setMessage("Ваш счёт: $score")
+            .setPositiveButton("OK") { dialog, _ ->
+                dialog.dismiss()
+                finish()
+            }
+            .setCancelable(false)
+            .show()
+    }
+
+
     override fun onDestroy() {
         handler.removeCallbacks(spawnRunnable)
+        handler.removeCallbacks(timerRunnable)
         super.onDestroy()
     }
 }
