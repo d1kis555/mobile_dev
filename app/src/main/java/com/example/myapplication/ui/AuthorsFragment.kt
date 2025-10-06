@@ -35,9 +35,8 @@ class AuthorsFragment : Fragment() {
 
 
         val authors = listOf(
-            Author("Иван Иванов", R.drawable.ic_person),
-            Author("Мария Петрова", R.drawable.ic_person),
-            Author("Фёдор Сидоров", R.drawable.ic_person)
+            Author("Артём Баринов", R.drawable.artem),
+            Author("Фёдор Симаков", R.drawable.fedya),
         )
 
         list.adapter = AuthorsAdapter(authors)

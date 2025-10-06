@@ -14,6 +14,7 @@ import kotlin.math.atan2
 import kotlin.random.Random
 import android.animation.Animator
 import android.animation.AnimatorListenerAdapter
+import android.widget.Button
 
 class GameActivity : ComponentActivity() {
 
@@ -38,6 +39,11 @@ class GameActivity : ComponentActivity() {
 
         tvScore = findViewById(R.id.tvScore)
         gameField = findViewById(R.id.gameField)
+
+        val btnMenu: Button = findViewById(R.id.btnMenu)
+        btnMenu.setOnClickListener {
+            finish()
+        }
 
         val difficulty = intent.getIntExtra("EXTRA_DIFFICULTY", 1)
         gameSpeed = 1f + (difficulty - 1) * 0.2f
