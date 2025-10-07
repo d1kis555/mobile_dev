@@ -2,6 +2,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- Для Retrofit / загрузки курса -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+
     <application
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
@@ -11,6 +14,8 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.MyApplication">
+
+        <!-- Точка входа приложения -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -18,11 +23,29 @@
             android:theme="@style/Theme.MyApplication">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity android:name=".GameActivity" />
+
+        <!-- Экран игры -->
+        <activity
+            android:name=".GameActivity"
+            android:exported="false" />
+
+        <!-- Виджет «Курс золота ЦБ» -->
+        <receiver
+            android:name=".widget.GoldAppWidget"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <!-- вручную обновить курс по тапу на виджете -->
+                <action android:name="com.example.myapplication.ACTION_REFRESH_GOLD" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/gold_widget_info" />
+        </receiver>
+
     </application>
 
 </manifest>
