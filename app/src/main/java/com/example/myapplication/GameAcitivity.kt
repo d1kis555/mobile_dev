@@ -51,32 +51,47 @@ class GameActivity : ComponentActivity() {
     // ===== бонус/наклон =====
     private val bonusHandler = Handler(Looper.getMainLooper())
     private lateinit var bonusLoopRunnable: Runnable
-    private val bonusPeriodMs = 15_000L     // каждые 15с появляется
-    private val bonusLifetimeMs = 6_000L    // висит на экране до 6с
-    private val tiltDurationMs = 10_000L    // наклон активен 10с
+    private val bonusPeriodMs = 15_000L     // новые бонусы каждые 15с
+    private val bonusLifetimeMs = 10_000L   // бонус исчезает через 10с, если не кликнули
+    private val tiltDurationMs = 5_000L     // режим наклона активен 5с
 
     private var tiltActive = false
-    private var tiltX = 0f   // -1..1
-    private var tiltY = 0f   // -1..1
+    private var tiltX = 0f   // -1..1 (вправо положительный)
+    private var tiltY = 0f   // -1..1 (вниз положительный)
     private val tiltHandler = Handler(Looper.getMainLooper())
     private lateinit var tiltRunnable: Runnable
-    private val bugAnimators = mutableMapOf<ImageView, ValueAnimator>() // чтобы останавливать при бонусе
+    private val bugAnimators = mutableMapOf<ImageView, ValueAnimator>()
     private var mediaPlayer: MediaPlayer? = null
 
     private lateinit var sensorManager: SensorManager
     private var accel: Sensor? = null
+
+    // pitch/roll из акселерометра — чтобы движение соответствовало экрану
     private val sensorListener = object : SensorEventListener {
         override fun onSensorChanged(e: SensorEvent) {
             if (!tiltActive) return
-            // нормируем ускорение к -1..1, инвертируем X для интуитивного движения
-            tiltX = (-e.values[0]) / SensorManager.GRAVITY_EARTH
-            tiltY = (e.values[1]) / SensorManager.GRAVITY_EARTH
-            if (tiltX < -1f) tiltX = -1f; if (tiltX > 1f) tiltX = 1f
-            if (tiltY < -1f) tiltY = -1f; if (tiltY > 1f) tiltY = 1f
+            val g = SensorManager.GRAVITY_EARTH
+            val nx = e.values[0] / g // ось X устройства
+            val ny = e.values[1] / g // ось Y устройства
+            val nz = e.values[2] / g // ось Z (перпендикуляр к экрану)
+
+            // pitch: вперёд/назад (вперёд => вниз по экрану)
+            val pitch = atan2(
+                -nx.toDouble(),
+                sqrt((ny * ny + nz * nz).toDouble())
+            ).toFloat()
+
+            // roll: влево/вправо (вправо => вправо по экрану)
+            val roll = atan2(
+                ny.toDouble(),
+                nz.toDouble()
+            ).toFloat()
+
+            tiltX = roll.coerceIn(-1f, 1f)
+            tiltY = pitch.coerceIn(-1f, 1f)
         }
         override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
     }
-    // ========================
 
     private lateinit var db: AppDatabase
 
@@ -99,11 +114,9 @@ class GameActivity : ComponentActivity() {
         sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
         accel = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
 
-        // запуск логики игры
         gameField.post { startSpawning() }
         startTimer()
 
-        // клик мимо жука — штраф
         gameField.setOnTouchListener { _, event ->
             if (event.action == MotionEvent.ACTION_DOWN) {
                 val tappedView = gameField.findViewAt(event.x, event.y)
@@ -115,10 +128,10 @@ class GameActivity : ComponentActivity() {
             false
         }
 
-        // бонус — при клике активируем наклон
+        // клик по бонусу — активируем режим наклона
         bonusView.setOnClickListener { activateTiltBonus() }
 
-        // периодический спавн бонуса
+        // периодический показ бонуса
         bonusLoopRunnable = object : Runnable {
             override fun run() {
                 showBonusOnce()
@@ -236,7 +249,7 @@ class GameActivity : ComponentActivity() {
         bonusView.y = y.toFloat()
         bonusView.visibility = android.view.View.VISIBLE
 
-        // автоскрытие, если не нажали
+        // автоскрытие через 10с, если не нажали
         bonusView.removeCallbacks(hideBonusRunnable)
         bonusView.postDelayed(hideBonusRunnable, bonusLifetimeMs)
     }
@@ -254,15 +267,15 @@ class GameActivity : ComponentActivity() {
         mediaPlayer?.release()
         mediaPlayer = MediaPlayer.create(this, R.raw.bug_scream).apply { start() }
 
-        // остановить текущую анимацию пути у всех жуков
+        // остановить текущие анимации пути у всех жуков
         bugAnimators.values.forEach { it.cancel() }
         bugAnimators.clear()
 
         // включить сенсор
         accel?.let { sensorManager.registerListener(sensorListener, it, SensorManager.SENSOR_DELAY_GAME) }
 
-        // запуск "дрейфа" к наклону (60 Гц)
-        val tiltSpeedPxPerSec = 500f * gameSpeed   // подкорректируй при желании
+        // дрейф 60 Гц по pitch/roll
+        val tiltSpeedPxPerSec = 500f * gameSpeed
         tiltRunnable = object : Runnable {
             override fun run() {
                 if (!tiltActive) return
@@ -272,7 +285,6 @@ class GameActivity : ComponentActivity() {
                 val w = gameField.width
                 val h = gameField.height
 
-                // двигаем всех ImageView кроме бонуса
                 for (i in 0 until gameField.childCount) {
                     val child = gameField.getChildAt(i)
                     if (child === bonusView || child !is ImageView) continue
@@ -297,7 +309,7 @@ class GameActivity : ComponentActivity() {
         }
         tiltHandler.post(tiltRunnable)
 
-        // выключим наклон через tiltDurationMs и возобновим обычное движение
+        // выключим наклон через 5 секунд и вернём обычное движение
         handler.postDelayed({ deactivateTiltBonus() }, tiltDurationMs)
     }
 
