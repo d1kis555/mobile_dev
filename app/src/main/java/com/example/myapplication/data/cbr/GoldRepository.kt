@@ -31,23 +31,31 @@ object GoldRepository {
      */
     suspend fun loadTodayGoldRubPerGram(context: Context): Double? = withContext(Dispatchers.IO) {
         try {
-            val today = Date()
-            val d = dateFormat.format(today)
-            val resp = api.getMetals(d, d)
-            val gold = resp.records.orEmpty().lastOrNull { it.code == 1 }
+            val fmt = SimpleDateFormat("dd/MM/yyyy", Locale("ru"))
+            val cal = Calendar.getInstance()
+            val dateTo = fmt.format(cal.time)
+            cal.add(Calendar.DAY_OF_YEAR, -7) // последние 7 дней
+            val dateFrom = fmt.format(cal.time)
+
+            val resp = api.getMetals(dateFrom, dateTo)
+
+            val gold = resp.records.orEmpty()
+                .filter { it.code == 1 }        // 1 — золото
+                .lastOrNull()
+
             val text = gold?.buy ?: gold?.sell
             val parsed = text
                 ?.replace(" ", "")
                 ?.replace(",", ".")
                 ?.toDoubleOrNull()
-            if (parsed != null) {
-                saveCachedRate(context, parsed)
-            }
+
+            if (parsed != null) saveCachedRate(context, parsed)
             parsed
         } catch (_: Exception) {
             getCachedRate(context)
         }
     }
+
 
     fun saveCachedRate(context: Context, rate: Double) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)

@@ -4,7 +4,7 @@
     android:minHeight="124dp"
     android:minResizeWidth="124dp"
     android:minResizeHeight="124dp"
-    android:updatePeriodMillis="0"      <!-- обновляем вручную кодом -->
+    android:updatePeriodMillis="0"
     android:resizeMode="horizontal|vertical"
     android:widgetCategory="home_screen"
     android:initialLayout="@layout/widget_gold" />

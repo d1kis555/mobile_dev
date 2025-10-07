@@ -19,9 +19,15 @@ import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.activity.ComponentActivity
+import androidx.core.content.ContextCompat
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffColorFilter
 import com.example.myapplication.data.AppDatabase
 import com.example.myapplication.data.Score
+import com.example.myapplication.data.cbr.GoldRepository
 import kotlin.math.atan2
+import kotlin.math.max
+import kotlin.math.roundToInt
 import kotlin.math.sqrt
 import kotlin.random.Random
 import kotlinx.coroutines.CoroutineScope
@@ -95,6 +101,12 @@ class GameActivity : ComponentActivity() {
 
     private lateinit var db: AppDatabase
 
+    // ===== ЗОЛОТОЙ ТАРАКАН =====
+    private val goldHandler = Handler(Looper.getMainLooper())
+    private var goldRunnable: Runnable? = null
+    private val goldSpawnPeriodMs = 20_000L         // каждые 20 секунд
+    private var goldRateRubPerGram: Double = 0.0    // курс ЦБ (руб/г), кэш
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_game)
@@ -114,8 +126,15 @@ class GameActivity : ComponentActivity() {
         sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
         accel = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
 
+        // подгрузим курс золота (берём кэш, если оффлайн)
+        CoroutineScope(Dispatchers.Main).launch {
+            val fresh = GoldRepository.loadTodayGoldRubPerGram(this@GameActivity)
+            goldRateRubPerGram = fresh ?: (GoldRepository.getCachedRate(this@GameActivity) ?: 0.0)
+        }
+
         gameField.post { startSpawning() }
         startTimer()
+        startGoldSpawning() // запуск спавна золотого таракана
 
         gameField.setOnTouchListener { _, event ->
             if (event.action == MotionEvent.ACTION_DOWN) {
@@ -162,7 +181,8 @@ class GameActivity : ComponentActivity() {
         handler.post(spawnRunnable)
     }
 
-    private fun spawnBug() {
+    // isGolden=true — золотой таракан
+    private fun spawnBug(isGolden: Boolean = false) {
         val sizePx = (bugSizeDp * resources.displayMetrics.density).toInt()
         val fieldW = gameField.width
         val fieldH = gameField.height
@@ -172,6 +192,19 @@ class GameActivity : ComponentActivity() {
         val bugDrawable = resources.getIdentifier("juk", "drawable", packageName)
         if (bugDrawable != 0) bug.setImageResource(bugDrawable)
         else bug.setImageResource(R.drawable.ic_launcher_foreground)
+
+        // отдельная иконка золотого — juk_gold; если нет, подкрашиваем в золото
+        if (isGolden) {
+            val goldId = resources.getIdentifier("juk_gold", "drawable", packageName)
+            if (goldId != 0) {
+                bug.setImageResource(goldId)
+            } else {
+                bug.colorFilter = PorterDuffColorFilter(
+                    ContextCompat.getColor(this, android.R.color.holo_orange_light),
+                    PorterDuff.Mode.SRC_ATOP
+                )
+            }
+        }
 
         val startX = Random.nextInt(0, fieldW - sizePx).toFloat()
         val startY = Random.nextInt(0, fieldH - sizePx).toFloat()
@@ -186,7 +219,13 @@ class GameActivity : ComponentActivity() {
                 bugAnimators.remove(it)?.cancel()
                 if (it.parent != null) (it.parent as ViewGroup).removeView(it)
             }
-            score += 10
+            if (isGolden) {
+                // очки пропорционально курсу (пример: курс/100, минимум 1)
+                val bonus = max(1, (goldRateRubPerGram / 100.0).roundToInt())
+                score += bonus
+            } else {
+                score += 10
+            }
             tvScore.text = "Очки: $score"
         }
 
@@ -348,6 +387,23 @@ class GameActivity : ComponentActivity() {
         handler.post(timerRunnable)
     }
 
+    // ===== ЗОЛОТОЙ ТАРАКАН: каждые 20 секунд =====
+    private fun startGoldSpawning() {
+        if (goldRunnable != null) return
+        goldRunnable = object : Runnable {
+            override fun run() {
+                if (roundRemainingMs <= 0) return
+                spawnBug(isGolden = true)
+                goldHandler.postDelayed(this, goldSpawnPeriodMs)
+            }
+        }
+        goldHandler.postDelayed(goldRunnable!!, goldSpawnPeriodMs)
+    }
+
+    private fun getCurrentUserName(): String {
+        val prefs = getSharedPreferences("game_prefs", MODE_PRIVATE)
+        return prefs.getString("current_user", "Гость") ?: "Гость"
+    }
     private fun saveScore(userName: String, score: Int) {
         val prefs = getSharedPreferences("game_prefs", Context.MODE_PRIVATE)
         val speed = prefs.getInt("speed", 5)
@@ -363,14 +419,10 @@ class GameActivity : ComponentActivity() {
             bonusInterval = bonusInterval,
             roundDuration = roundDuration
         )
+
         CoroutineScope(Dispatchers.IO).launch {
             db.scoreDao().insertScore(record)
         }
-    }
-
-    private fun getCurrentUserName(): String {
-        val prefs = getSharedPreferences("game_prefs", MODE_PRIVATE)
-        return prefs.getString("current_user", "Гость") ?: "Гость"
     }
 
     private fun endGame() {
@@ -378,6 +430,7 @@ class GameActivity : ComponentActivity() {
         handler.removeCallbacks(timerRunnable)
         bonusHandler.removeCallbacks(bonusLoopRunnable)
         bonusView.removeCallbacks(hideBonusRunnable)
+        goldRunnable?.let { goldHandler.removeCallbacks(it) }
         tiltHandler.removeCallbacksAndMessages(null)
         sensorManager.unregisterListener(sensorListener)
         mediaPlayer?.release()
@@ -416,6 +469,7 @@ class GameActivity : ComponentActivity() {
         handler.removeCallbacks(timerRunnable)
         bonusHandler.removeCallbacks(bonusLoopRunnable)
         bonusView.removeCallbacks(hideBonusRunnable)
+        goldRunnable?.let { goldHandler.removeCallbacks(it) }
         tiltHandler.removeCallbacksAndMessages(null)
         mediaPlayer?.release()
         mediaPlayer = null
