@@ -22,6 +22,15 @@
         android:layout_below="@id/tvScore"
         android:layout_width="match_parent"
         android:layout_height="match_parent"/>
+
+
+    <ImageView
+        android:id="@+id/bonusView"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:src="@drawable/ic_bonus"
+        android:contentDescription="@string/bonus"
+        android:visibility="gone" />
     <Button
         android:id="@+id/btnMenu"
         android:layout_width="wrap_content"

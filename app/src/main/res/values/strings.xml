@@ -24,6 +24,7 @@
     <string-array name="courses">
         <item>1 курс</item><item>2 курс</item><item>3 курс</item><item>4 курс</item><item>5 курс</item>
     </string-array>
+    <string name="bonus">Бонус</string>
 
 </resources>
 
