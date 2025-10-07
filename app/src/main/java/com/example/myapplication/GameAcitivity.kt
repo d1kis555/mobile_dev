@@ -8,77 +8,50 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
-import android.media.MediaPlayer
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.view.MotionEvent
+import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.TextView
-import androidx.activity.ComponentActivity
-import com.example.myapplication.data.AppDatabase
-import com.example.myapplication.data.Score
+import androidx.appcompat.app.AppCompatActivity
+import org.koin.androidx.viewmodel.ext.android.viewModel
 import kotlin.math.atan2
 import kotlin.math.sqrt
 import kotlin.random.Random
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 
-class GameActivity : ComponentActivity() {
+class GameActivity : AppCompatActivity() {
+
+    private val gameViewModel: GameViewModel by viewModel()
 
     private lateinit var tvScore: TextView
     private lateinit var tvTimer: TextView
     private lateinit var gameField: FrameLayout
     private lateinit var bonusView: ImageView
 
-    private var score = 0
-    private var roundRemainingMs: Long = 0
-
     private val handler = Handler(Looper.getMainLooper())
+    private val bugAnimators = mutableMapOf<ImageView, ValueAnimator>()
+
+    private var tiltActive = false
+    private var tiltX = 0f
+    private var tiltY = 0f
+    private lateinit var sensorManager: SensorManager
+    private var accel: Sensor? = null
+    private val tiltHandler = Handler(Looper.getMainLooper())
+    private lateinit var tiltRunnable: Runnable
+
+    private val bonusHandler = Handler(Looper.getMainLooper())
+    private lateinit var bonusLoopRunnable: Runnable
+    private val bonusLifetimeMs = 10_000L
+    private val tiltDurationMs = 5_000L
+    private var roundRemainingMs: Long = 60_000L
     private lateinit var spawnRunnable: Runnable
     private lateinit var timerRunnable: Runnable
 
-    private var gameSpeed: Float = 3.0f
-    private var maxBugs: Int = 10
-    private var spawnIntervalMs: Long = 1200L
-    private var roundDurationMs: Long = 60000L
-    private val bugSizeDp: Int = 64
-
-    // ===== бонус/наклон =====
-    private val bonusHandler = Handler(Looper.getMainLooper())
-    private lateinit var bonusLoopRunnable: Runnable
-    private val bonusPeriodMs = 15_000L     // каждые 15с появляется
-    private val bonusLifetimeMs = 6_000L    // висит на экране до 6с
-    private val tiltDurationMs = 10_000L    // наклон активен 10с
-
-    private var tiltActive = false
-    private var tiltX = 0f   // -1..1
-    private var tiltY = 0f   // -1..1
-    private val tiltHandler = Handler(Looper.getMainLooper())
-    private lateinit var tiltRunnable: Runnable
-    private val bugAnimators = mutableMapOf<ImageView, ValueAnimator>() // чтобы останавливать при бонусе
-    private var mediaPlayer: MediaPlayer? = null
-
-    private lateinit var sensorManager: SensorManager
-    private var accel: Sensor? = null
-    private val sensorListener = object : SensorEventListener {
-        override fun onSensorChanged(e: SensorEvent) {
-            if (!tiltActive) return
-            // нормируем ускорение к -1..1, инвертируем X для интуитивного движения
-            tiltX = (-e.values[0]) / SensorManager.GRAVITY_EARTH
-            tiltY = (e.values[1]) / SensorManager.GRAVITY_EARTH
-            if (tiltX < -1f) tiltX = -1f; if (tiltX > 1f) tiltX = 1f
-            if (tiltY < -1f) tiltY = -1f; if (tiltY > 1f) tiltY = 1f
-        }
-        override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
-    }
-    // ========================
-
-    private lateinit var db: AppDatabase
+    private val bugSizeDp = 64
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -88,102 +61,81 @@ class GameActivity : ComponentActivity() {
         tvTimer = findViewById(R.id.tvTimer)
         gameField = findViewById(R.id.gameField)
         bonusView = findViewById(R.id.bonusView)
-
         val btnMenu: Button = findViewById(R.id.btnMenu)
         btnMenu.setOnClickListener { finish() }
-
-        loadSettings()
-        roundRemainingMs = roundDurationMs
-        db = AppDatabase.getDatabase(this)
 
         sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
         accel = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
 
-        // запуск логики игры
-        gameField.post { startSpawning() }
-        startTimer()
+        // Загружаем настройки из SharedPreferences
+        val prefs = getSharedPreferences("game_prefs", Context.MODE_PRIVATE)
+        gameViewModel.gameSpeed = prefs.getInt("speed", 5).toFloat()
+        gameViewModel.maxBugs = prefs.getInt("max_bugs", 10)
+        gameViewModel.bonusIntervalSec = prefs.getInt("bonus_interval", 15)
+        gameViewModel.roundDurationSec = prefs.getInt("round_duration", 60)
+        roundRemainingMs = gameViewModel.roundDurationSec * 1000L
 
-        // клик мимо жука — штраф
-        gameField.setOnTouchListener { _, event ->
-            if (event.action == MotionEvent.ACTION_DOWN) {
-                val tappedView = gameField.findViewAt(event.x, event.y)
-                if (tappedView == null) {
-                    score -= 5
-                    tvScore.text = "Очки: $score"
-                }
-            }
-            false
+        // LiveData наблюдатели
+        gameViewModel.score.observe(this) { tvScore.text = "Очки: $it" }
+        gameViewModel.timeLeft.observe(this) {
+            tvTimer.text = String.format("%02d:%02d", it / 60, it % 60)
+            if (it <= 0) endGame()
         }
+        gameViewModel.bugs.observe(this) { drawBugs() }
 
-        // бонус — при клике активируем наклон
-        bonusView.setOnClickListener { activateTiltBonus() }
-
-        // периодический спавн бонуса
-        bonusLoopRunnable = object : Runnable {
-            override fun run() {
-                showBonusOnce()
-                bonusHandler.postDelayed(this, bonusPeriodMs)
-            }
+        // Жуки спавнятся после измерения поля
+        gameField.post {
+            repeat(gameViewModel.maxBugs) { spawnRandomBug() }
+            startTimer()
+            startSpawning()
+            startBonusLoop()
         }
-        bonusHandler.postDelayed(bonusLoopRunnable, bonusPeriodMs)
     }
 
-    // ===== настройки =====
-    private fun loadSettings() {
-        val p = getSharedPreferences("game_prefs", MODE_PRIVATE)
-        gameSpeed = p.getInt("speed", 5).toFloat()
-        maxBugs = p.getInt("max_bugs", 10)
-        spawnIntervalMs = (p.getInt("bonus_interval", 15) * 100L).coerceAtLeast(350L)
-        roundDurationMs = (p.getInt("round_duration", 120) * 1000L)
+    private fun spawnRandomBug() {
+        val isGolden = Random.nextInt(100) < 10 // 10% шанс золотого жука
+        gameViewModel.spawnBug(isGolden)
     }
 
-    // ===== спавн жуков =====
-    private fun startSpawning() {
-        spawnRunnable = object : Runnable {
-            override fun run() {
-                val toSpawn = (maxBugs - gameField.childCountExcludingBonus()).coerceAtLeast(0)
-                repeat(toSpawn) { spawnBug() }
-                handler.postDelayed(this, (spawnIntervalMs / gameSpeed).toLong())
+    private fun drawBugs() {
+        val existingViews = gameField.childrenMap()
+        gameViewModel.bugs.value?.forEach { bug ->
+            if (!existingViews.containsKey(bug.id)) {
+                spawnBugView(bug)
             }
         }
-        handler.post(spawnRunnable)
     }
 
-    private fun spawnBug() {
+    private fun spawnBugView(bug: BugState) {
         val sizePx = (bugSizeDp * resources.displayMetrics.density).toInt()
+        val img = ImageView(this)
+
+        val resId = if (bug.isGolden) {
+            resources.getIdentifier("juk_gold", "drawable", packageName).takeIf { it != 0 } ?: R.drawable.juk
+        } else R.drawable.juk
+        img.setImageResource(resId)
+
         val fieldW = gameField.width
         val fieldH = gameField.height
         if (fieldW <= sizePx || fieldH <= sizePx) return
 
-        val bug = ImageView(this)
-        val bugDrawable = resources.getIdentifier("juk", "drawable", packageName)
-        if (bugDrawable != 0) bug.setImageResource(bugDrawable)
-        else bug.setImageResource(R.drawable.ic_launcher_foreground)
-
-        val startX = Random.nextInt(0, fieldW - sizePx).toFloat()
-        val startY = Random.nextInt(0, fieldH - sizePx).toFloat()
-        bug.x = startX
-        bug.y = startY
-
-        val params = FrameLayout.LayoutParams(sizePx, sizePx)
-        bug.layoutParams = params
-
-        bug.setOnClickListener {
-            it.animate().scaleX(0f).scaleY(0f).alpha(0f).setDuration(200).withEndAction {
-                bugAnimators.remove(it)?.cancel()
-                if (it.parent != null) (it.parent as ViewGroup).removeView(it)
-            }
-            score += 10
-            tvScore.text = "Очки: $score"
+        img.x = Random.nextInt(0, fieldW - sizePx).toFloat()
+        img.y = Random.nextInt(0, fieldH - sizePx).toFloat()
+        img.layoutParams = FrameLayout.LayoutParams(sizePx, sizePx)
+        img.setOnClickListener {
+            gameViewModel.addScore(if (bug.isGolden) 50 else 10)
+            gameViewModel.removeBug(bug.id)
+            img.animate().scaleX(0f).scaleY(0f).alpha(0f).setDuration(200)
+                .withEndAction { gameField.removeView(img) }
         }
 
-        gameField.addView(bug)
-        if (!tiltActive) {
-            moveBugSmooth(bug, fieldW, fieldH, sizePx)
-        }
+        gameField.addView(img)
+        moveBugSmooth(img, fieldW, fieldH, sizePx)
     }
 
     private fun moveBugSmooth(bug: ImageView, fieldW: Int, fieldH: Int, sizePx: Int) {
+        if (fieldW <= sizePx || fieldH <= sizePx) return
+
         val endX = Random.nextInt(0, fieldW - sizePx).toFloat()
         val endY = Random.nextInt(0, fieldH - sizePx).toFloat()
         val startX = bug.x
@@ -191,29 +143,23 @@ class GameActivity : ComponentActivity() {
         val dx = endX - startX
         val dy = endY - startY
         val distance = sqrt(dx * dx + dy * dy)
-        val speed = 50f * gameSpeed
+        val speed = 50f * gameViewModel.gameSpeed
         val duration = (distance / speed * 1000).toLong().coerceAtLeast(200L)
 
         val animator = ValueAnimator.ofFloat(0f, 1f).apply {
             this.duration = duration
-            addUpdateListener { valueAnimator ->
-                val fraction = valueAnimator.animatedValue as Float
+            addUpdateListener { v ->
+                val fraction = v.animatedValue as Float
                 val prevX = bug.x
                 val prevY = bug.y
-                val newX = startX + dx * fraction
-                val newY = startY + dy * fraction
-                bug.x = newX
-                bug.y = newY
-                val vx = newX - prevX
-                val vy = newY - prevY
-                if (vx != 0f || vy != 0f) {
-                    val angle = Math.toDegrees(atan2(vy.toDouble(), vx.toDouble())).toFloat() + 90f
-                    bug.rotation = angle
-                }
+                bug.x = startX + dx * fraction
+                bug.y = startY + dy * fraction
+                val angle = Math.toDegrees(atan2((bug.y - prevY).toDouble(), (bug.x - prevX).toDouble())).toFloat() + 90f
+                bug.rotation = angle
             }
             addListener(object : AnimatorListenerAdapter() {
                 override fun onAnimationEnd(animation: Animator) {
-                    if (bug.parent != null && !tiltActive) moveBugSmooth(bug, fieldW, fieldH, sizePx)
+                    if (!tiltActive) moveBugSmooth(bug, fieldW, fieldH, sizePx)
                 }
             })
         }
@@ -221,58 +167,81 @@ class GameActivity : ComponentActivity() {
         animator.start()
     }
 
+    private fun startSpawning() {
+        spawnRunnable = object : Runnable {
+            override fun run() {
+                val toSpawn = (gameViewModel.maxBugs - gameField.childCountExcludingBonus()).coerceAtLeast(0)
+                repeat(toSpawn) { spawnRandomBug() }
+                handler.postDelayed(this, (1200L / gameViewModel.gameSpeed).toLong())
+            }
+        }
+        handler.post(spawnRunnable)
+    }
+
+    private fun startTimer() {
+        timerRunnable = object : Runnable {
+            override fun run() {
+                if (roundRemainingMs <= 0) {
+                    gameViewModel.setTime(0)
+                    return
+                }
+                roundRemainingMs -= 1000
+                gameViewModel.setTime(roundRemainingMs / 1000)
+                handler.postDelayed(this, 1000)
+            }
+        }
+        handler.post(timerRunnable)
+    }
+
     // ===== бонус =====
+    private fun startBonusLoop() {
+        bonusLoopRunnable = object : Runnable {
+            override fun run() {
+                showBonusOnce()
+                bonusHandler.postDelayed(this, (gameViewModel.bonusIntervalSec * 1000L))
+            }
+        }
+        bonusHandler.postDelayed(bonusLoopRunnable, (gameViewModel.bonusIntervalSec * 1000L))
+    }
+
     private fun showBonusOnce() {
-        if (tiltActive) return // пока активен — новый не показываем
+        if (tiltActive) return
         val bw = bonusView.width.takeIf { it > 0 } ?: (48 * resources.displayMetrics.density).toInt()
         val bh = bonusView.height.takeIf { it > 0 } ?: (48 * resources.displayMetrics.density).toInt()
         val w = gameField.width
         val h = gameField.height
-        if (w == 0 || h == 0) return
-
-        val x = Random.nextInt((w - bw).coerceAtLeast(1))
-        val y = Random.nextInt((h - bh).coerceAtLeast(1))
+        if (w <= bw || h <= bh) return
+        val x = Random.nextInt(0, w - bw)
+        val y = Random.nextInt(0, h - bh)
         bonusView.x = x.toFloat()
         bonusView.y = y.toFloat()
-        bonusView.visibility = android.view.View.VISIBLE
-
-        // автоскрытие, если не нажали
+        bonusView.visibility = View.VISIBLE
         bonusView.removeCallbacks(hideBonusRunnable)
         bonusView.postDelayed(hideBonusRunnable, bonusLifetimeMs)
+        bonusView.setOnClickListener { activateTiltBonus() }
     }
 
-    private val hideBonusRunnable = Runnable {
-        if (!tiltActive) bonusView.visibility = android.view.View.GONE
-    }
+    private val hideBonusRunnable = Runnable { if (!tiltActive) bonusView.visibility = View.GONE }
 
     private fun activateTiltBonus() {
         if (tiltActive) return
         tiltActive = true
-        bonusView.visibility = android.view.View.GONE
+        bonusView.visibility = View.GONE
 
-        // звук
-        mediaPlayer?.release()
-        mediaPlayer = MediaPlayer.create(this, R.raw.bug_scream).apply { start() }
-
-        // остановить текущую анимацию пути у всех жуков
+        // Остановить все анимации жуков
         bugAnimators.values.forEach { it.cancel() }
         bugAnimators.clear()
 
-        // включить сенсор
         accel?.let { sensorManager.registerListener(sensorListener, it, SensorManager.SENSOR_DELAY_GAME) }
 
-        // запуск "дрейфа" к наклону (60 Гц)
-        val tiltSpeedPxPerSec = 500f * gameSpeed   // подкорректируй при желании
         tiltRunnable = object : Runnable {
             override fun run() {
                 if (!tiltActive) return
                 val dt = 0.016f
-                val dx = tiltX * tiltSpeedPxPerSec * dt
-                val dy = tiltY * tiltSpeedPxPerSec * dt
+                val dx = tiltX * 500f * gameViewModel.gameSpeed * dt
+                val dy = tiltY * 500f * gameViewModel.gameSpeed * dt
                 val w = gameField.width
                 val h = gameField.height
-
-                // двигаем всех ImageView кроме бонуса
                 for (i in 0 until gameField.childCount) {
                     val child = gameField.getChildAt(i)
                     if (child === bonusView || child !is ImageView) continue
@@ -284,20 +253,13 @@ class GameActivity : ComponentActivity() {
                     ny = ny.coerceIn(0f, (h - child.height).toFloat())
                     child.x = nx
                     child.y = ny
-
-                    val vx = nx - prevX
-                    val vy = ny - prevY
-                    if (vx != 0f || vy != 0f) {
-                        val angle = Math.toDegrees(atan2(vy.toDouble(), vx.toDouble())).toFloat() + 90f
-                        child.rotation = angle
-                    }
+                    val angle = Math.toDegrees(atan2((ny - prevY).toDouble(), (nx - prevX).toDouble())).toFloat() + 90f
+                    child.rotation = angle
                 }
                 tiltHandler.postDelayed(this, 16L)
             }
         }
         tiltHandler.post(tiltRunnable)
-
-        // выключим наклон через tiltDurationMs и возобновим обычное движение
         handler.postDelayed({ deactivateTiltBonus() }, tiltDurationMs)
     }
 
@@ -307,7 +269,6 @@ class GameActivity : ComponentActivity() {
         sensorManager.unregisterListener(sensorListener)
         tiltHandler.removeCallbacks(tiltRunnable)
 
-        // запустить обычные анимации снова
         val sizePx = (bugSizeDp * resources.displayMetrics.density).toInt()
         val w = gameField.width
         val h = gameField.height
@@ -318,47 +279,19 @@ class GameActivity : ComponentActivity() {
         }
     }
 
-    // ===== таймер/счёт =====
-    private fun startTimer() {
-        timerRunnable = object : Runnable {
-            override fun run() {
-                if (roundRemainingMs <= 0) {
-                    endGame()
-                    return
-                }
-                val seconds = (roundRemainingMs / 1000) % 60
-                val minutes = (roundRemainingMs / 1000) / 60
-                tvTimer.text = String.format("%02d:%02d", minutes, seconds)
-                roundRemainingMs -= 1000
-                handler.postDelayed(this, 1000)
-            }
+    private val sensorListener = object : SensorEventListener {
+        override fun onSensorChanged(e: SensorEvent) {
+            if (!tiltActive) return
+            val g = SensorManager.GRAVITY_EARTH
+            val nx = e.values[0] / g
+            val ny = e.values[1] / g
+            val nz = e.values[2] / g
+            val pitch = atan2(-nx.toDouble(), sqrt((ny * ny + nz * nz).toDouble())).toFloat()
+            val roll = atan2(ny.toDouble(), nz.toDouble()).toFloat()
+            tiltX = roll.coerceIn(-1f, 1f)
+            tiltY = pitch.coerceIn(-1f, 1f)
         }
-        handler.post(timerRunnable)
-    }
-
-    private fun saveScore(userName: String, score: Int) {
-        val prefs = getSharedPreferences("game_prefs", Context.MODE_PRIVATE)
-        val speed = prefs.getInt("speed", 5)
-        val maxBugs = prefs.getInt("max_bugs", 10)
-        val bonusInterval = prefs.getInt("bonus_interval", 15)
-        val roundDuration = prefs.getInt("round_duration", 30)
-
-        val record = Score(
-            userName = userName,
-            points = score,
-            difficulty = speed,
-            maxBugs = maxBugs,
-            bonusInterval = bonusInterval,
-            roundDuration = roundDuration
-        )
-        CoroutineScope(Dispatchers.IO).launch {
-            db.scoreDao().insertScore(record)
-        }
-    }
-
-    private fun getCurrentUserName(): String {
-        val prefs = getSharedPreferences("game_prefs", MODE_PRIVATE)
-        return prefs.getString("current_user", "Гость") ?: "Гость"
+        override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
     }
 
     private fun endGame() {
@@ -368,30 +301,10 @@ class GameActivity : ComponentActivity() {
         bonusView.removeCallbacks(hideBonusRunnable)
         tiltHandler.removeCallbacksAndMessages(null)
         sensorManager.unregisterListener(sensorListener)
-        mediaPlayer?.release()
-        mediaPlayer = null
-
-        roundRemainingMs = 0
-
-        val childCount = gameField.childCount
-        for (i in childCount - 1 downTo 0) {
-            val child = gameField.getChildAt(i)
-            child.animate().cancel()
-            gameField.removeView(child)
-        }
-
-        gameField.setOnTouchListener(null)
-        tvTimer.text = "00:00"
-
-        val userName = getCurrentUserName()
-        saveScore(userName, score)
-
-        androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle("Игра окончена!")
-            .setMessage("Ваш счёт: $score")
-            .setPositiveButton("OK") { dialog, _ -> dialog.dismiss(); finish() }
-            .setCancelable(false)
-            .show()
+        bugAnimators.values.forEach { it.cancel() }
+        bugAnimators.clear()
+        gameViewModel.clearBugs()
+        finish()
     }
 
     override fun onPause() {
@@ -400,32 +313,16 @@ class GameActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        super.onDestroy()
         handler.removeCallbacks(spawnRunnable)
         handler.removeCallbacks(timerRunnable)
         bonusHandler.removeCallbacks(bonusLoopRunnable)
         bonusView.removeCallbacks(hideBonusRunnable)
         tiltHandler.removeCallbacksAndMessages(null)
-        mediaPlayer?.release()
-        mediaPlayer = null
-        super.onDestroy()
     }
 }
 
 // ===== утилиты =====
-private fun ViewGroup.findViewAt(x: Float, y: Float): ImageView? {
-    for (i in 0 until childCount) {
-        val child = getChildAt(i)
-        if (child is ImageView && child.visibility == android.view.View.VISIBLE) {
-            val left = child.x
-            val top = child.y
-            val right = left + child.width
-            val bottom = top + child.height
-            if (x in left..right && y in top..bottom) return child
-        }
-    }
-    return null
-}
-
 private fun ViewGroup.childCountExcludingBonus(): Int {
     var c = 0
     for (i in 0 until childCount) {
@@ -433,4 +330,15 @@ private fun ViewGroup.childCountExcludingBonus(): Int {
         if (v is ImageView && v.id != R.id.bonusView) c++
     }
     return c
+}
+
+private fun ViewGroup.childrenMap(): Map<Int, ImageView> {
+    val map = mutableMapOf<Int, ImageView>()
+    for (i in 0 until childCount) {
+        val child = getChildAt(i)
+        if (child is ImageView) {
+            map[child.hashCode()] = child
+        }
+    }
+    return map
 }
