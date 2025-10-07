@@ -28,6 +28,7 @@ android {
             )
         }
     }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
@@ -41,23 +42,27 @@ android {
 }
 
 dependencies {
+    // UI / AndroidX
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("com.google.android.material:material:1.12.0")
     implementation("androidx.viewpager2:viewpager2:1.0.0")
     implementation("androidx.fragment:fragment-ktx:1.8.2")
 
+    // Retrofit + OkHttp (сырой XML через ScalarsConverter)
     implementation("com.squareup.retrofit2:retrofit:2.11.0")
-    implementation("com.squareup.retrofit2:converter-simplexml:2.11.0")
+    implementation("com.squareup.retrofit2:converter-scalars:2.11.0")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+
+    // Coroutines (одна версия в проекте)
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
 
+    // Room 2.6.1 (если в @Database exportSchema=false — плагин Room не нужен)
+    implementation("androidx.room:room-runtime:2.6.1")
+    implementation("androidx.room:room-ktx:2.6.1")
+    kapt("androidx.room:room-compiler:2.6.1")
 
-    implementation("androidx.room:room-runtime:2.6.0")
-    implementation("androidx.room:room-ktx:2.6.0")
-    kapt("androidx.room:room-compiler:2.6.0")
-
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
-
+    // Compose (через version catalog)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
@@ -66,6 +71,8 @@ dependencies {
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
+
+    // Tests
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
